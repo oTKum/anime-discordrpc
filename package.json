@@ -1,0 +1,23 @@
+{
+  "name": "anime-discordrpc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oTKum/anime-discordrpc.git"
+  },
+  "author": "otokoume",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/oTKum/anime-discordrpc/issues"
+  },
+  "homepage": "https://github.com/oTKum/anime-discordrpc#readme",
+  "dependencies": {
+    "discord-rpc": "^3.1.4",
+    "express": "^4.17.1"
+  }
+}
