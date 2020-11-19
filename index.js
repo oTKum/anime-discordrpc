@@ -4,52 +4,71 @@ const RPC = require('discord-rpc');
 const CLIENT_ID = '778667680931905618';
 const SCOPE     = ['rpc'];
 
-let timestamp;
+const startTimestamp = new Date().getTime();
+const client         = new RPC.Client({ transport: 'ipc' });
 
-app.get('/setRPC', (req) => {
-    const client = new RPC.Client({ transport: 'ipc' });
+client.on('ready', onReady);
 
-    client.on('ready', () => onReady(client));
+client.login({ clientId: CLIENT_ID }).catch((reason) => {
+    console.error(`Failed to login: ${reason}`);
+    process.exit(0);
+});
 
-    client.login({ clientId: CLIENT_ID, scopes: SCOPE });
+app.get('/setRPC', setActivity).listen(6463);
 
-    setActivity(req, client);
-}).listen(8080);
+process
+    .on('exit', () => {
+        client.clearActivity();
+        client.destroy();
+    })
+    .on('SIGTERM', () => {
+        client.clearActivity();
+        client.destroy();
+    })
+    .on('SIGINT', () => {
+        client.clearActivity();
+        client.destroy();
+        process.exit(0);
+    });
 
 /**
  * 初期化処理
- * @param client
  */
-function onReady(client) {
-    console.log(`Logged in as ${client.application.name}`);
-    timestamp = new Date().getTime();
+function onReady() {
+    console.log(`Logged in as ${client.application}`);
+    setActivity({ query: {} });
 }
 
 /**
  * アクティビティを設定する
  * @param req
- * @param client
  */
-function setActivity(req, client) {
+function setActivity(req) {
     const query  = req.query;
-    const status = query.isIdle ? genStatus() : genStatus(query.title, query.service, timestamp);
+    const status = query.isIdle ? genStatus() : genStatus(query.product, query.sImgKey, query.service);
 
-    client.setActivity(status);
+    client.setActivity(status).catch((reason) => {
+        console.error(reason);
+        process.exit(0);
+    });
 }
 
 /**
  * アクティビティのペイロードを生成する
- * @param {string} title 作品名
- * @param {string} service サービス名
- * @param {number} timestamp 開始時間
- * @returns {{largeImageText: string, largeImageKey: string, state: string, detail: string, startTimestamp: number}}
+ * @param {string} product 作品名
+ * @param {string} smallImageKey 小画像のファイル名
+ * @param {string} smallImageText 小画像のテキスト
+ * @returns {{smallImageKey: string, largeImageText: string, largeImageKey: string, details: string, state:
+ *     string, smallImageText: string, startTimestamp: number}}
  */
-function genStatus(title = '', service = '', timestamp = -1) {
+function genStatus(product = '', smallImageKey = '  ', smallImageText = '  ') {
     return {
-        state         : service !== '' ? `on ${service}` : '',
-        detail        : title !== '' ? `Now watching ${title}` : '',
-        startTimestamp: timestamp,
+        state         : product !== '' ? `📺${product}` : '(σ回ω・)σ',
+        details       : product !== '' ? `Now watching:` : '  ',
+        startTimestamp: startTimestamp,
         largeImageKey : 'large',
         largeImageText: 'Watching animes',
+        smallImageKey : smallImageKey,
+        smallImageText: smallImageText,
     };
 }
