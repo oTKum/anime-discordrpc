@@ -4,13 +4,26 @@ const RPC = require('discord-rpc');
 const CLIENT_ID = '778667680931905618';
 const SCOPE     = ['rpc'];
 
+let timestamp;
+
 app.get('/setRPC', (req) => {
     const client = new RPC.Client({ transport: 'ipc' });
 
-    client.on('ready', () => setActivity(req, client));
+    client.on('ready', () => onReady(client));
 
     client.login({ clientId: CLIENT_ID, scopes: SCOPE });
+
+    setActivity(req, client);
 }).listen(8080);
+
+/**
+ * 初期化処理
+ * @param client
+ */
+function onReady(client) {
+    console.log(`Logged in as ${client.application.name}`);
+    timestamp = new Date().getTime();
+}
 
 /**
  * アクティビティを設定する
@@ -18,13 +31,8 @@ app.get('/setRPC', (req) => {
  * @param client
  */
 function setActivity(req, client) {
-    console.log(`Logged in as ${client.application.name}`);
-
-    const timestamp = new Date().getTime();
-    const query     = req.query;
-    const status    = query.isIdle
-                      ? genStatus()
-                      : genStatus(query.title, query.service, timestamp);
+    const query  = req.query;
+    const status = query.isIdle ? genStatus() : genStatus(query.title, query.service, timestamp);
 
     client.setActivity(status);
 }
