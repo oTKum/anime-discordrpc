@@ -69,6 +69,6 @@ function genStatus(product = '', smallImageKey = '  ', smallImageText = '  ') {
         largeImageKey : 'large',
         largeImageText: 'Watching animes',
         smallImageKey : smallImageKey,
-        smallImageText: smallImageText,
+        smallImageText: `on ${smallImageText}`,
     };
 }
