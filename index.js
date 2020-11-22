@@ -1,20 +1,24 @@
 const app = require('express')();
 const RPC = require('discord-rpc');
 
-const CLIENT_ID = '778667680931905618';
-const SCOPE     = ['rpc'];
+const CLIENT_OPTIONS = { transport: 'ipc' };
+const LOGIN_OPTIONS  = { clientId: '778667680931905618' };
+const PORT           = 6463;
 
 const startTimestamp = new Date().getTime();
-const client         = new RPC.Client({ transport: 'ipc' });
+const client         = new RPC.Client(CLIENT_OPTIONS);
 
-client.on('ready', onReady);
-
-client.login({ clientId: CLIENT_ID }).catch((reason) => {
+// ログイン
+client.login(LOGIN_OPTIONS).catch((reason) => {
     console.error(`Failed to login: ${reason}`);
     process.exit(0);
 });
 
-app.get('/setRPC', setActivity).listen(6463);
+// サーバー起動
+app.get('/setRPC', setActivity).listen(PORT);
+
+// イベント処理
+client.on('ready', onReady);
 
 process
     .on('exit', () => {
@@ -35,7 +39,7 @@ process
  * 初期化処理
  */
 function onReady() {
-    console.log(`Logged in as ${client.application}`);
+    console.log('Logged in');
     setActivity({ query: {} });
 }
 
@@ -61,7 +65,7 @@ function setActivity(req) {
  * @returns {{smallImageKey: string, largeImageText: string, largeImageKey: string, details: string, state:
  *     string, smallImageText: string, startTimestamp: number}}
  */
-function genStatus(product = '', smallImageKey = '  ', smallImageText = '  ') {
+function genStatus(product = '', smallImageKey = 'none', smallImageText = 'none') {
     return {
         state         : product !== '' ? `📺${product}` : '(σ回ω・)σ',
         details       : product !== '' ? `Now watching:` : '  ',

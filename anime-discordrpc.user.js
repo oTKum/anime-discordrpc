@@ -6,7 +6,7 @@
 // @author       otokoume
 // @match        https://www.nicovideo.jp/watch/so*
 // @match        https://live2.nicovideo.jp/watch/*
-// @match        https://www.amazon.co.jp/gp/video/detail/*
+// @match        https://www.amazon.co.jp/*
 // @include      /https://www\.nicovideo\.jp/watch/\d+/
 // @grant        none
 // ==/UserScript==
@@ -19,9 +19,9 @@
 
     const supportedService = {
         // TODO: ZenzaWatchでの視聴にも対応したい
-        'www.nicovideo'        : 'ニコニコ動画',
-        'live2.nicovideo'      : 'ニコニコ生放送',
-        'amazon.co.jp/gp/video': 'Prime Video',
+        'www.nicovideo'  : 'ニコニコ動画',
+        'live2.nicovideo': 'ニコニコ生放送',
+        'amazon.co.jp'   : 'Prime Video',
     };
 
     // 現在ページのサービス名
@@ -82,8 +82,14 @@
 
         url = genUrl(service, $product.textContent, 'small_nico_live');
     } else if (service === 'Prime Video') {
+        // 動画概要コンテナ
+        const $container = document.getElementsByClassName('av-dp-container');
+
+        // 動画視聴ページでなければ終了
+        if (!$container.length) return;
+
         // 作品名
-        const $product = document.getElementsByClassName('_1GTSsh _2Q73m9')[0];
+        const $product = $container[0].getElementsByClassName('_1GTSsh _2Q73m9')[0];
 
         // ジャンル項目
         // const $genreEntry = [...document
