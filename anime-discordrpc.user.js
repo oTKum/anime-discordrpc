@@ -24,6 +24,11 @@
         'amazon.co.jp/gp/video': 'Prime Video',
     };
 
+    // 現在ページのサービス名
+    let service;
+    // fetch先のリンク
+    let url;
+
     // 現在ページのサービスを特定
     for (const [k, v] of Object.entries(supportedService)) {
         if (window.location.href.includes(k)) {
@@ -46,11 +51,6 @@
     const genUrl = (service, product, sImgKey = '  ') =>
         `${BASE_URL}?service=${service}&product=${product}&sImgKey=${sImgKey}`;
 
-    // 現在ページのサービス名
-    let service;
-    // fetch先のリンク
-    let url;
-
     // 各サービスごとの処理
     if (service === 'ニコニコ動画') {
         // 作品名
@@ -72,13 +72,13 @@
         // 分類されているタグ
         const $tags     = document.getElementsByClassName('___tag___3KpH_');
         // 提供種別
-        const $provider = document.getElementsByClassName('___program-label-view___3bf0n')[0];
+        const $provider = document.getElementsByClassName('___program-label-view___3bf0n');
 
         // アニメタグがなければ終了
         if ([...$tags].every((v) => !v.textContent.includes('アニメ'))) return;
 
         // 公式放送じゃなければ終了
-        if ($provider.text !== '公式') return;
+        if (!$provider.length || $provider[0].textContent !== '公式') return;
 
         url = genUrl(service, $product.textContent, 'small_nico_live');
     } else if (service === 'Prime Video') {
