@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "pkg": "pkg -t node14-win-x64 --out-path ./builds index.js"
   },
   "repository": {
     "type": "git",
@@ -19,5 +19,8 @@
   "dependencies": {
     "discord-rpc": "^3.1.4",
     "express": "^4.17.1"
+  },
+  "devDependencies": {
+    "pkg": "^4.4.9"
   }
 }

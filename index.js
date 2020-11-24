@@ -5,8 +5,7 @@ const CLIENT_OPTIONS = { transport: 'ipc' };
 const LOGIN_OPTIONS  = { clientId: '778667680931905618' };
 const PORT           = 6463;
 
-const startTimestamp = new Date().getTime();
-const client         = new RPC.Client(CLIENT_OPTIONS);
+const client = new RPC.Client(CLIENT_OPTIONS);
 
 // ログイン
 client.login(LOGIN_OPTIONS).catch((reason) => {
@@ -40,7 +39,7 @@ process
  */
 function onReady() {
     console.log('Logged in');
-    setActivity({ query: {} });
+    setActivity();
 }
 
 /**
@@ -48,8 +47,14 @@ function onReady() {
  * @param req
  */
 function setActivity(req) {
-    const query  = req.query;
-    const status = query.isIdle ? genStatus() : genStatus(query.product, query.sImgKey, query.service);
+    const query = req?.query;
+    let status;
+
+    if (!query || query?.isIdle) {
+        status = genStatus();
+    } else {
+        status = genStatus(query.product, Number(query.timestamp), query.sImgKey, query.service);
+    }
 
     client.setActivity(status).catch((reason) => {
         console.error(reason);
@@ -60,19 +65,21 @@ function setActivity(req) {
 /**
  * アクティビティのペイロードを生成する
  * @param {string} product 作品名
+ * @param {number} timestamp 開始時刻のタイムスタンプ（経過時間用）
  * @param {string} smallImageKey 小画像のファイル名
  * @param {string} smallImageText 小画像のテキスト
  * @returns {{smallImageKey: string, largeImageText: string, largeImageKey: string, details: string, state:
  *     string, smallImageText: string, startTimestamp: number}}
  */
-function genStatus(product = '', smallImageKey = 'none', smallImageText = 'none') {
+function genStatus(product = '', timestamp = 0, smallImageKey = 'none', smallImageText = 'none') {
     return {
         state         : product !== '' ? `📺${product}` : '(σ回ω・)σ',
         details       : product !== '' ? `Now watching:` : '  ',
-        startTimestamp: startTimestamp,
+        startTimestamp: timestamp,
         largeImageKey : 'large',
         largeImageText: 'Watching animes',
         smallImageKey : smallImageKey,
         smallImageText: `on ${smallImageText}`,
+        instance      : true,
     };
 }
