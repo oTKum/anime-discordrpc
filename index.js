@@ -13,8 +13,25 @@ client.login(LOGIN_OPTIONS).catch((reason) => {
     process.exit(0);
 });
 
-// サーバー起動
-app.get('/setRPC', setActivity).listen(PORT);
+/* サーバー起動 */
+// CORS設定
+const allowCrossDomain = function (_, res, next) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.set({
+                'Access-Control-Allow-Origin' : '*',
+                'Access-Control-Allow-Headers': 'X-Requested-With',
+            });
+    next();
+};
+
+app.use(allowCrossDomain);
+
+// RPC設定用
+app.get('/setRPC', setActivity);
+
+// TODO: Logger用
+
+app.listen(PORT);
 
 // イベント処理
 client.on('ready', onReady);
@@ -44,9 +61,10 @@ function onReady() {
 
 /**
  * アクティビティを設定する
- * @param req
+ * @param {Request} req
+ * @param {Response} res
  */
-function setActivity(req) {
+function setActivity(req, res) {
     const query = req?.query;
     let status;
 
@@ -56,10 +74,13 @@ function setActivity(req) {
         status = genStatus(query.product, Number(query.timestamp), query.sImgKey, query.service);
     }
 
-    client.setActivity(status).catch((reason) => {
-        console.error(reason);
-        process.exit(0);
-    });
+    client.setActivity(status)
+          .catch((reason) => {
+              console.error(reason);
+              process.exit(0);
+          });
+
+    res?.sendStatus(200);
 }
 
 /**
