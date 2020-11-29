@@ -19,18 +19,21 @@
 
     const supportedService = {
         // TODO: ZenzaWatchでの視聴にも対応したい
-        'www.nicovideo'  : 'ニコニコ動画',
-        'live2.nicovideo': 'ニコニコ生放送',
-        'amazon.co.jp'   : 'Prime Video',
+        'www.nicovideo'  : ['ニコニコ動画', 'small_nico'],
+        'live2.nicovideo': ['ニコニコ生放送', 'small_nico_live'],
+        'amazon.co.jp'   : ['Prime Video', 'small_prime_video'],
     };
 
     // 現在ページのサービス名
     let service;
+    // 小画像のキー
+    let imageKey;
 
     // 現在ページのサービスを特定
     for (const [k, v] of Object.entries(supportedService)) {
         if (window.location.href.includes(k)) {
-            service = v;
+            service  = v[0];
+            imageKey = v[1];
 
             break;
         }
@@ -53,7 +56,7 @@
     /**
      * 指定の要素が現れるまで待機する
      * @param {string} selector
-     * @returns {Promise<Element>}
+     * @returns {Promise<HTMLElement>}
      */
     const waitForElement = (selector) => {
         return new Promise((resolve) => {
@@ -67,39 +70,6 @@
             }, 500);
         });
     };
-
-    // 各サービスごとの処理
-    switch (service) {
-        case 'ニコニコ動画':
-            // 動的に動画が表示されるため、生成を待ってから処理
-            waitForElement('#MainVideoPlayer video').then(($player) => {
-                // さらに動画が読み込まれるまで待機
-                const observer = new MutationObserver(() => {
-                    // videoタグが再生成されるようなので再度取得
-                    const _$player = document.getElementById('MainVideoPlayer').getElementsByTagName('video')[0];
-
-                    observer.disconnect();
-                    nicovideoHandler(_$player);
-                });
-
-                observer.observe($player, { attributes: true });
-            });
-
-            break;
-
-        case 'ニコニコ生放送':
-            nicoliveHandler();
-
-            break;
-
-        case 'Prime Video':
-            primeVideoHandler();
-
-            break;
-    }
-
-    // ページ遷移時は作品名の表示を消す
-    window.addEventListener('beforeunload', () => fetch(IDLE_URL));
 
     /**
      * 遅延実行可能で、重複リクエストを阻止するFetchを提供する
@@ -183,6 +153,9 @@
 
     const dFetch = new DelayedFetch();
 
+    // ページ遷移時は作品名の表示を消す
+    window.addEventListener('beforeunload', () => fetch(IDLE_URL));
+
     /**
      * 現在時刻から指定秒前のタイムスタンプを取得する
      * @param {number} sec 遡る時間（秒）
@@ -192,10 +165,60 @@
         new Date(new Date() - new Date(0).setSeconds(sec)).getTime();
 
     /**
+     * RPC情報をクライアントへ送信する
+     * @param {number} curPlayTime 動画プレイヤーの経過時間（秒）
+     * @param {string} product 作品名
+     * @returns {Promise<Response>}
+     */
+    const sendRPC = (curPlayTime, product) => {
+        const timestamp = getTimestampAt(curPlayTime);
+        const url       = genUrl(service, product, timestamp, imageKey);
+
+        return dFetch.set(url);
+    };
+
+    /**
+     * プレイヤーのイベントリスナーを処理する
+     * @param {HTMLVideoElement} $player 動画プレイヤー要素
+     * @param {string} product 作品名
+     */
+    const playerEventHandler = ($player, product) => {
+        // 最初はアイドル状態で設定
+        dFetch.set(genUrl(service, product, 0, imageKey));
+
+        // 再生時にタイムスタンプ設定
+        $player.addEventListener('play', () => {
+            console.log('play');
+            sendRPC(Math.floor($player.currentTime), product);
+        });
+
+        // ポーズ時にタイムスタンプ破棄
+        $player.addEventListener('pause', () => {
+            console.log('pause');
+            dFetch.set(genUrl(service, product, 0, imageKey));
+        });
+
+        // シーク時にタイムスタンプ更新
+        $player.addEventListener('seeked', () => {
+            console.log('seeked');
+            // ポーズ中は更新しない
+            if ($player.paused) return null;
+
+            sendRPC(Math.floor($player.currentTime), product);
+        });
+
+        // 再生終了時にアクティビティリセット
+        $player.addEventListener('ended', () => {
+            console.log('ended');
+            dFetch.set(IDLE_URL);
+        });
+    };
+
+    /**
      * ニコニコ動画用の処理
      * @param {HTMLVideoElement} $player 動画プレイヤーの要素
      */
-    function nicovideoHandler($player) {
+    const nicovideoHandler = ($player) => {
         // 作品名
         const product     = document.getElementsByClassName('ChannelInfo-pageLink')[0].textContent;
         // 動画ジャンル
@@ -209,45 +232,13 @@
         // アニメじゃなければ終了
         if (genre !== 'アニメ') return;
 
-        const IMAGE_KEY = 'small_nico';
-        const pauseUrl  = genUrl(service, product, 0, IMAGE_KEY);
-
-        fetch(pauseUrl);
-
-        // 再生時にタイムスタンプ設定
-        $player.addEventListener('play', () => {
-            sendRPC();
-        });
-
-        // ポーズ時にタイムスタンプ破棄
-        $player.addEventListener('pause', () => {
-            dFetch.set(pauseUrl);
-        });
-
-        // シーク時にタイムスタンプ更新
-        $player.addEventListener('seeked', () => {
-            // ポーズ中は更新しない
-            if ($player.paused) return false;
-
-            sendRPC();
-        });
-
-        // 再生終了時にアクティビティ初期化
-        $player.addEventListener('ended', () => fetch(IDLE_URL));
-
-        function sendRPC() {
-            const curPlayTime = Math.floor($player.currentTime);
-            const timestamp   = getTimestampAt(curPlayTime);
-            const url         = genUrl(service, product, timestamp, IMAGE_KEY);
-
-            dFetch.set(url);
-        }
-    }
+        playerEventHandler($player, product);
+    };
 
     /**
      * ニコニコ生放送用の処理
      */
-    function nicoliveHandler() {
+    const nicoliveHandler = () => {
         // 作品名
         const $product  = document.getElementsByClassName('___channel-name-anchor___dQ-bQ')[0];
         // 分類されているタグ
@@ -261,15 +252,17 @@
         // 公式放送じゃなければ終了
         if (!$provider.length || $provider[0].textContent !== '公式') return;
 
-        const url = genUrl(service, $product.textContent, 0, 'small_nico_live');
+        // TODO: [Nicolive] 再生位置を反映
+
+        const url = genUrl(service, $product.textContent, 0, imageKey);
 
         fetch(url);
-    }
+    };
 
     /**
      * プライムビデオ用の処理
      */
-    function primeVideoHandler() {
+    const primeVideoHandler = () => {
         // 動画概要コンテナ
         const $container = document.getElementsByClassName('av-dp-container');
 
@@ -277,7 +270,14 @@
         if (!$container.length) return;
 
         // 作品名
-        const $product = $container[0].getElementsByClassName('_1GTSsh _2Q73m9')[0];
+        const product = $container[0].getElementsByClassName('_1GTSsh _2Q73m9')[0].textContent;
+
+        // 動画プレイヤーの出現を待ってから処理
+        waitForElement('#dv-web-player video').then(($player) => {
+            playerEventHandler($player, product);
+        });
+
+        // TODO: [Prime] 再生直後に広告が入ると、経過時間がその広告分加算されるのを阻止
 
         // ジャンル項目
         // const $genreEntry = [...document
@@ -300,9 +300,35 @@
         //     if ([...$genres].every((v) => !v.textContent === 'アニメ')) {
         //     }
         // }
+    };
 
-        const url = genUrl(service, $product.textContent, 0, 'small_prime_video');
+    // 各サービスごとの処理
+    switch (service) {
+        case 'ニコニコ動画':
+            // 動的に動画が表示されるため、生成を待ってから処理
+            waitForElement('#MainVideoPlayer video').then(($player) => {
+                // さらに動画が読み込まれるまで待機
+                const observer = new MutationObserver(() => {
+                    // videoタグが再生成されるようなので再度取得
+                    const _$player = document.getElementById('MainVideoPlayer').getElementsByTagName('video')[0];
 
-        fetch(url);
+                    observer.disconnect();
+                    nicovideoHandler(_$player);
+                });
+
+                observer.observe($player, { attributes: true });
+            });
+
+            break;
+
+        case 'ニコニコ生放送':
+            nicoliveHandler();
+
+            break;
+
+        case 'Prime Video':
+            primeVideoHandler();
+
+            break;
     }
 })();
