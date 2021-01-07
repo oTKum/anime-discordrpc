@@ -21,7 +21,7 @@
         // TODO: ZenzaWatchでの視聴にも対応したい
         'www.nicovideo'  : ['ニコニコ動画', 'small_nico'],
         'live2.nicovideo': ['ニコニコ生放送', 'small_nico_live'],
-        'amazon.co.jp'   : ['Prime Video', 'small_prime_video'],
+        'amazon.co.jp'   : ['Prime Video', 'small_prime_video']
     };
 
     // 現在ページのサービス名
@@ -153,26 +153,39 @@
 
     const dFetch = new DelayedFetch();
 
-    // ページ遷移時は作品名の表示を消す
+    // ページ遷移時はRPCリセット（DelayedFetchだと反映に間に合わないため、通常フェッチ）
     window.addEventListener('beforeunload', () => fetch(IDLE_URL));
 
     /**
-     * 現在時刻から指定秒前のタイムスタンプを取得する
+     * 指定時刻から指定秒前のタイムスタンプを取得する
      * @param {number} sec 遡る時間（秒）
-     * @returns {number} UNIX時間
+     * @param {number} from 遡る基準のタイムスタンプ (UNIX)
+     * @returns {number} タイムスタンプ (UNIX)
      */
-    const getTimestampAt = (sec) =>
-        new Date(new Date() - new Date(0).setSeconds(sec)).getTime();
+    const getTimestampBefore = (sec, from) => {
+        const resultTimestamp = new Date(from) - new Date(0).setSeconds(sec);
+
+        return new Date(resultTimestamp).getTime();
+    };
 
     /**
      * RPC情報をクライアントへ送信する
-     * @param {number} curPlayTime 動画プレイヤーの経過時間（秒）
      * @param {string} product 作品名
+     * @param {number} curPlayTime 動画プレイヤーの経過時間（秒）
+     * @param {number} fromTimestamp 経過時間の原点となるタイムスタンプ (UNIX)
      * @returns {Promise<Response>}
      */
-    const sendRPC = (curPlayTime, product) => {
-        const timestamp = getTimestampAt(curPlayTime);
-        const url       = genUrl(service, product, timestamp, imageKey);
+    const sendRPC = (product, curPlayTime, fromTimestamp = new Date().getTime()) => {
+        let timestamp;
+
+        // 経過時間と原点となるタイムスタンプが両方0の場合、わざわざ計算させない
+        if (curPlayTime === 0 && fromTimestamp === 0) {
+            timestamp = 0;
+        } else {
+            timestamp = getTimestampBefore(curPlayTime, fromTimestamp);
+        }
+
+        const url = genUrl(service, product, timestamp, imageKey);
 
         return dFetch.set(url);
     };
@@ -184,18 +197,18 @@
      */
     const playerEventHandler = ($player, product) => {
         // 最初はアイドル状態で設定
-        dFetch.set(genUrl(service, product, 0, imageKey));
+        sendRPC(product, 0, 0);
 
         // 再生時にタイムスタンプ設定
         $player.addEventListener('play', () => {
             console.log('play');
-            sendRPC(Math.floor($player.currentTime), product);
+            sendRPC(product, Math.floor($player.currentTime));
         });
 
         // ポーズ時にタイムスタンプ破棄
         $player.addEventListener('pause', () => {
             console.log('pause');
-            dFetch.set(genUrl(service, product, 0, imageKey));
+            sendRPC(product, 0, 0);
         });
 
         // シーク時にタイムスタンプ更新
@@ -204,7 +217,7 @@
             // ポーズ中は更新しない
             if ($player.paused) return null;
 
-            sendRPC(Math.floor($player.currentTime), product);
+            sendRPC(product, Math.floor($player.currentTime));
         });
 
         // 再生終了時にアクティビティリセット
@@ -272,9 +285,22 @@
         // 作品名
         const product = $container[0].getElementsByClassName('_1GTSsh _2Q73m9')[0].textContent;
 
+        // 動画プレイヤーを閉じる際にタイムスタンプクリア
+        const observer = new MutationObserver((records) => {
+            const isPlayerOpened = records[0].target.className.includes('dv-player-fullscreen');
+
+            if (isPlayerOpened) return null;
+
+            sendRPC(product, 0, 0);
+        });
+
         // 動画プレイヤーの出現を待ってから処理
         waitForElement('#dv-web-player video').then(($player) => {
             playerEventHandler($player, product);
+
+            const $rootOfPlayer = document.getElementById('dv-web-player');
+
+            observer.observe($rootOfPlayer, { attributes: true, attributeFilter: ['class'] });
         });
 
         // TODO: [Prime] 再生直後に広告が入ると、経過時間がその広告分加算されるのを阻止
@@ -310,7 +336,8 @@
                 // さらに動画が読み込まれるまで待機
                 const observer = new MutationObserver(() => {
                     // videoタグが再生成されるようなので再度取得
-                    const _$player = document.getElementById('MainVideoPlayer').getElementsByTagName('video')[0];
+                    const _$player = document.getElementById('MainVideoPlayer')
+                                             .getElementsByTagName('video')[0];
 
                     observer.disconnect();
                     nicovideoHandler(_$player);
