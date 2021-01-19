@@ -93,6 +93,12 @@ function setActivity(req, res) {
  *     string, smallImageText: string, startTimestamp: number}}
  */
 function genStatus(product = '', timestamp = 0, smallImageKey = 'none', smallImageText = 'none') {
+    // 作品名が長すぎる場合は収める
+    if (product.length > 128) {
+        // 先頭に絵文字、末尾に三点リーダーを設ける都合により125
+        product = product.substring(0, 125) + '…';
+    }
+
     return {
         state         : product !== '' ? `📺${product}` : '(σ回ω・)σ',
         details       : product !== '' ? `Now watching:` : '  ',

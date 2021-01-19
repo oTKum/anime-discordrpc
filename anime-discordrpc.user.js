@@ -233,7 +233,7 @@
      */
     const nicovideoHandler = ($player) => {
         // 作品名
-        const product     = document.getElementsByClassName('ChannelInfo-pageLink')[0].textContent;
+        const product     = document.getElementsByClassName('VideoTitle')[0].textContent;
         // 動画ジャンル
         const genre       = data?.content.genre;
         // 動画種別
@@ -331,7 +331,7 @@
     // 各サービスごとの処理
     switch (service) {
         case 'ニコニコ動画':
-            // 動的に動画が表示されるため、生成を待ってから処理
+            // 動画の生成を待ってから処理
             waitForElement('#MainVideoPlayer video').then(($player) => {
                 // さらに動画が読み込まれるまで待機
                 const observer = new MutationObserver(() => {
