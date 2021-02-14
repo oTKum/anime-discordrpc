@@ -119,7 +119,7 @@
             this.#controller = new AbortController();
             this.#queuedTime = new Date().getTime();
             this.#queuedId   = setInterval(() => {
-                const hasWaitTimeElapsed = (new Date().getTime() - this.#queuedTime) >= timeout;
+                const hasWaitTimeElapsed = new Date().getTime() - this.#queuedTime >= timeout;
 
                 // 指定待機時間を過ぎたら抜け出す
                 if (hasWaitTimeElapsed) {
@@ -283,7 +283,8 @@
         if (!$container.length) return;
 
         // 作品名
-        const product = $container[0].getElementsByClassName('_1GTSsh _2Q73m9')[0].textContent;
+        const product = $container[0].getElementsByClassName('av-detail-section')[0].getElementsByTagName('h1')[0]
+            .textContent;
 
         // 動画プレイヤーを閉じる際にタイムスタンプクリア
         const observer = new MutationObserver((records) => {
