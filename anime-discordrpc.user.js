@@ -17,30 +17,39 @@
     const BASE_URL = 'http://localhost:6463/setRPC';
     const IDLE_URL = `${BASE_URL}?isIdle=true`;
 
-    const supportedService = {
-        // TODO: ZenzaWatchでの視聴にも対応したい
-        'www.nicovideo'  : ['ニコニコ動画', 'small_nico'],
-        'live2.nicovideo': ['ニコニコ生放送', 'small_nico_live'],
-        'amazon.co.jp'   : ['Prime Video', 'small_prime_video']
+    const Service = {
+        Nicovideo : 0,
+        Nicolive  : 1,
+        PrimeVideo: 2
     };
 
-    // 現在ページのサービス名
-    let service;
+    const supportedService = [
+        // TODO: ZenzaWatchでの視聴にも対応したい
+        ['ニコニコ動画', 'www.nicovideo', 'small_nico'],
+        ['ニコニコ生放送', 'live2.nicovideo', 'small_nico_live'],
+        ['Prime Video', 'amazon.co.jp', 'small_prime_video']
+    ];
+
+    // 現在ページのサービス
+    let currentService;
+    // サービス名
+    let serviceName;
     // 小画像のキー
     let imageKey;
 
     // 現在ページのサービスを特定
-    for (const [k, v] of Object.entries(supportedService)) {
-        if (window.location.href.includes(k)) {
-            service  = v[0];
-            imageKey = v[1];
+    for (const entry of supportedService) {
+        if (!window.location.href.includes(entry[1])) continue;
 
-            break;
-        }
+        currentService = supportedService.indexOf(entry);
+        serviceName    = entry[0];
+        imageKey       = entry[2];
+
+        break;
     }
 
     // 特定できなければ終了
-    if (!service) return;
+    if (!serviceName) return;
 
     /**
      * フェッチURLを生成する
@@ -185,44 +194,42 @@
             timestamp = getTimestampBefore(curPlayTime, fromTimestamp);
         }
 
-        const url = genUrl(service, product, timestamp, imageKey);
+        const url = genUrl(serviceName, product, timestamp, imageKey);
 
         return dFetch.set(url);
     };
 
+    // 作品名 + 話数・タイトル
+    let productText;
+
     /**
      * プレイヤーのイベントリスナーを処理する
      * @param {HTMLVideoElement} $player 動画プレイヤー要素
-     * @param {string} product 作品名
      */
-    const playerEventHandler = ($player, product) => {
+    const playerEventHandler = ($player) => {
         // 最初はアイドル状態で設定
-        sendRPC(product, 0, 0);
+        sendRPC(productText, 0, 0);
 
         // 再生時にタイムスタンプ設定
         $player.addEventListener('play', () => {
-            console.log('play');
-            sendRPC(product, Math.floor($player.currentTime));
+            sendRPC(productText, Math.floor($player.currentTime));
         });
 
         // ポーズ時にタイムスタンプ破棄
         $player.addEventListener('pause', () => {
-            console.log('pause');
-            sendRPC(product, 0, 0);
+            sendRPC(productText, 0, 0);
         });
 
         // シーク時にタイムスタンプ更新
         $player.addEventListener('seeked', () => {
-            console.log('seeked');
             // ポーズ中は更新しない
             if ($player.paused) return null;
 
-            sendRPC(product, Math.floor($player.currentTime));
+            sendRPC(productText, Math.floor($player.currentTime));
         });
 
         // 再生終了時にアクティビティリセット
         $player.addEventListener('ended', () => {
-            console.log('ended');
             dFetch.set(IDLE_URL);
         });
     };
@@ -233,8 +240,8 @@
      */
     const nicovideoHandler = ($player) => {
         // 作品名
-        const product     = document.getElementsByClassName('VideoTitle')[0].textContent;
-        // 動画ジャンル
+        productText       = document.getElementsByClassName('VideoTitle')[0].textContent;
+        // 動画ジャンル (dataはニコニコのグローバル変数)
         const genre       = data?.content.genre;
         // 動画種別
         const contentType = data?.content.content_type;
@@ -245,7 +252,7 @@
         // アニメじゃなければ終了
         if (genre !== 'アニメ') return;
 
-        playerEventHandler($player, product);
+        playerEventHandler($player);
     };
 
     /**
@@ -278,6 +285,7 @@
     const primeVideoHandler = () => {
         // 動画概要コンテナ
         const $container = document.getElementsByClassName('av-dp-container');
+        let $subtitle;
 
         // 動画視聴ページでなければ終了
         if (!$container.length) return;
@@ -286,22 +294,33 @@
         const product = $container[0].getElementsByClassName('av-detail-section')[0].getElementsByTagName('h1')[0]
             .textContent;
 
+        productText = product;
+
         // 動画プレイヤーを閉じる際にタイムスタンプクリア
-        const observer = new MutationObserver((records) => {
+        const playerCloseObs = new MutationObserver((records) => {
             const isPlayerOpened = records[0].target.className.includes('dv-player-fullscreen');
 
             if (isPlayerOpened) return null;
 
+            // 閉じる際は話数等を含ませない
             sendRPC(product, 0, 0);
+        });
+
+        // 別話の動画に切り替わる際に表示テキストの話数・題名を更新
+        const playerUpdateObs = new MutationObserver(() => {
+            const subtitleStartIndex = $subtitle.textContent.indexOf(' ') + 1;
+            productText              = `${product} ${$subtitle.textContent.substr(subtitleStartIndex)}`;
         });
 
         // 動画プレイヤーの出現を待ってから処理
         waitForElement('#dv-web-player video').then(($player) => {
-            playerEventHandler($player, product);
+            playerEventHandler($player);
 
             const $rootOfPlayer = document.getElementById('dv-web-player');
+            $subtitle           = document.querySelector('.webPlayerUIContainer h2');
 
-            observer.observe($rootOfPlayer, { attributes: true, attributeFilter: ['class'] });
+            playerCloseObs.observe($rootOfPlayer, { attributes: true, attributeFilter: ['class'] });
+            playerUpdateObs.observe($subtitle, { childList: true });
         });
 
         // TODO: [Prime] 再生直後に広告が入ると、経過時間がその広告分加算されるのを阻止
@@ -330,8 +349,8 @@
     };
 
     // 各サービスごとの処理
-    switch (service) {
-        case 'ニコニコ動画':
+    switch (currentService) {
+        case Service.Nicovideo:
             // 動画の生成を待ってから処理
             waitForElement('#MainVideoPlayer video').then(($player) => {
                 // さらに動画が読み込まれるまで待機
@@ -349,12 +368,12 @@
 
             break;
 
-        case 'ニコニコ生放送':
+        case Service.Nicolive:
             nicoliveHandler();
 
             break;
 
-        case 'Prime Video':
+        case Service.PrimeVideo:
             primeVideoHandler();
 
             break;
