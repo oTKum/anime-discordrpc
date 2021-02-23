@@ -258,13 +258,13 @@
     /**
      * ニコニコ生放送用の処理
      */
-    const nicoliveHandler = () => {
+    const nicoliveHandler = ($player) => {
         // 作品名
-        const $product  = document.getElementsByClassName('___channel-name-anchor___dQ-bQ')[0];
+        productText     = document.querySelector('[class^="___channel-name-anchor___"]').textContent;
         // 分類されているタグ
-        const $tags     = document.getElementsByClassName('___tag___3KpH_');
+        const $tags     = document.querySelectorAll('[class^="___tag___"]');
         // 提供種別
-        const $provider = document.getElementsByClassName('___program-label-view___3bf0n');
+        const $provider = document.querySelectorAll('[class^="___program-label-view___"]');
 
         // アニメタグがなければ終了
         if ([...$tags].every((v) => !v.textContent.includes('アニメ'))) return;
@@ -272,11 +272,7 @@
         // 公式放送じゃなければ終了
         if (!$provider.length || $provider[0].textContent !== '公式') return;
 
-        // TODO: [Nicolive] 再生位置を反映
-
-        const url = genUrl(service, $product.textContent, 0, imageKey);
-
-        fetch(url);
+        playerEventHandler($player);
     };
 
     /**
@@ -369,7 +365,39 @@
             break;
 
         case Service.Nicolive:
-            nicoliveHandler();
+            // TODO: プレイヤーは動画がリロードされるたびに再生成され、経過時間もリセットされるので時間を文字列で直接取得する
+            //
+            const $videoLayer = document.getElementsByClassName('___video-layer___qLdFV')[0];
+
+            const observer = new MutationObserver((records) => {
+                for (const addedNode of records.lastItem.addedNodes) {
+                    const children = Array.from(addedNode.childNodes);
+                    const players  = children.filter((node) => node.nodeName === 'VIDEO');
+
+                    // video要素がなければ終了
+                    if (players.length === 0) break;
+
+                    // プレイヤーのソースがなければ終了
+                    if (!players[0].hasAttribute('src')) break;
+
+                    observer.disconnect();
+                    nicoliveHandler(players[0]);
+                }
+            });
+
+            observer.observe($videoLayer, { childList: true, subtree: true });
+            // waitForElement('.___video-layer___qLdFV video').then(($player) => {
+            //     // console.log($player);
+            //     // 動画が読み込まれるまで待機
+            //     const observer = new MutationObserver((records) => {
+            //         if (records[0].target.getAttributes('src') === null) return null;
+            //
+            //         observer.disconnect();
+            //         nicoliveHandler($player);
+            //     });
+            //
+            //     observer.observe($player, { attributes: true });
+            // });
 
             break;
 
