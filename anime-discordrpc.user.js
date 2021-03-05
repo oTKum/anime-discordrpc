@@ -59,8 +59,11 @@
      * @param {string} sImgKey 小画像のキー名
      * @returns {string} URL
      */
-    const genUrl = (service, product, timestamp, sImgKey) =>
-        `${BASE_URL}?service=${service}&product=${product}&timestamp=${timestamp}&sImgKey=${sImgKey}`;
+    const genUrl = (service, product, timestamp, sImgKey) => {
+        product = encodeURIComponent(product);
+
+        return `${BASE_URL}?service=${service}&product=${product}&timestamp=${timestamp}&sImgKey=${sImgKey}`;
+    };
 
     /**
      * 指定の要素が現れるまで待機する
