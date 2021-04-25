@@ -242,8 +242,9 @@
      * @param {HTMLVideoElement} $player 動画プレイヤーの要素
      */
     const nicovideoHandler = ($player) => {
+        const $videoTitle = document.getElementsByClassName('VideoTitle')[0];
         // 作品名
-        productText       = document.getElementsByClassName('VideoTitle')[0].textContent;
+        productText       = $videoTitle.textContent;
         // 動画ジャンル (dataはニコニコのグローバル変数)
         const genre       = data?.content.genre;
         // 動画種別
@@ -256,6 +257,16 @@
         if (genre !== 'アニメ') return;
 
         playerEventHandler($player);
+
+        // 動画ページで動画リンクをクリックした際、リロードされないので作品名を再取得
+        // .VideoTitleではなぜか変更検知できない…
+        const $videoDesc = document.getElementsByClassName('VideoDescription-html')[0];
+        const observer   = new MutationObserver(() => {
+            productText = $videoTitle.textContent;
+            sendRPC(productText, 0, 0);
+        });
+
+        observer.observe($videoDesc, { childList: true });
     };
 
     /**
@@ -369,7 +380,6 @@
 
         case Service.Nicolive:
             // TODO: プレイヤーは動画がリロードされるたびに再生成され、経過時間もリセットされるので時間を文字列で直接取得する
-            //
             const $videoLayer = document.getElementsByClassName('___video-layer___qLdFV')[0];
 
             const observer = new MutationObserver((records) => {
