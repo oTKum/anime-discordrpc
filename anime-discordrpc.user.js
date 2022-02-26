@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Anime DiscordRPC
 // @namespace    https://github.com/oTKum/
-// @version      0.1.0
+// @version      0.1.1
 // @description  アニメ用のDiscordRPC
 // @author       otokoume
 // @match        https://www.nicovideo.jp/watch/so*
@@ -401,7 +401,7 @@
 
     // 各サービスごとの処理
     switch (currentService.serviceType) {
-        case ServiceType.Nicovideo:
+        case ServiceType.Nicovideo: {
             // 動画の生成を待ってから処理
             waitForElement('#MainVideoPlayer video').then(($player) => {
                 // さらに動画が読み込まれるまで待機
@@ -418,13 +418,15 @@
             });
 
             break;
+        }
 
-        case ServiceType.Nicolive:
+        case ServiceType.Nicolive: {
             // TODO: プレイヤーは動画がリロードされるたびに再生成され、経過時間もリセットされるので時間を文字列で直接取得する
-            const $videoLayer = document.getElementsByClassName('___video-layer___qLdFV')[0];
+            const $videoLayer = document.querySelector('[class^="___video-layer___"]');
 
             const observer = new MutationObserver((records) => {
-                for (const addedNode of records.lastItem.addedNodes) {
+                // 追加された子ノードでforeach
+                for (const addedNode of records[records.length - 1].addedNodes) {
                     const children = Array.from(addedNode.childNodes);
                     const players  = children.filter((node) => node.nodeName === 'VIDEO');
 
@@ -454,10 +456,12 @@
             // });
 
             break;
+        }
 
-        case ServiceType.PrimeVideo:
+        case ServiceType.PrimeVideo: {
             primeVideoHandler();
 
             break;
+        }
     }
 })();
