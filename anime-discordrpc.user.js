@@ -1,55 +1,96 @@
 // ==UserScript==
 // @name         Anime DiscordRPC
 // @namespace    https://github.com/oTKum/
-// @version      0.1
+// @version      0.1.0
 // @description  アニメ用のDiscordRPC
 // @author       otokoume
 // @match        https://www.nicovideo.jp/watch/so*
-// @match        https://live2.nicovideo.jp/watch/*
+// @match        https://live.nicovideo.jp/watch/*
 // @match        https://www.amazon.co.jp/*
 // @include      /https://www\.nicovideo\.jp/watch/\d+/
 // @grant        none
 // ==/UserScript==
 
-(function () {
+(function() {
     'use strict';
+
+    class Service {
+        /**
+         * サービス名
+         * @type string
+         */
+        serviceName;
+
+        /**
+         * サービスの種類
+         * @type ServiceType
+         */
+        serviceType;
+
+        /**
+         * サービスサイトのドメイン
+         * @type string
+         */
+        domain;
+
+        /**
+         * RPCで表示する小画像のキー名
+         * @type string
+         */
+        imageKey;
+
+        /**
+         * @param {string} serviceName
+         * @param {ServiceType} serviceType
+         * @param {string} domain
+         * @param {string} imageKey
+         */
+        constructor(serviceName, serviceType, domain, imageKey) {
+            this.serviceName = serviceName;
+            this.serviceType = serviceType;
+            this.domain      = domain;
+            this.imageKey    = imageKey;
+        }
+    }
 
     const BASE_URL = 'http://localhost:6463/setRPC';
     const IDLE_URL = `${BASE_URL}?isIdle=true`;
 
-    const Service = {
+    const ServiceType = {
         Nicovideo : 0,
         Nicolive  : 1,
         PrimeVideo: 2
     };
 
+    /**
+     * 対応サービス一覧
+     * @type {Service[]}
+     */
     const supportedService = [
         // TODO: ZenzaWatchでの視聴にも対応したい
-        ['ニコニコ動画', 'www.nicovideo', 'small_nico'],
-        ['ニコニコ生放送', 'live2.nicovideo', 'small_nico_live'],
-        ['Prime Video', 'amazon.co.jp', 'small_prime_video']
+        new Service('ニコニコ動画', ServiceType.Nicovideo, 'www.nicovideo.jp', 'small_nico'),
+        new Service('ニコニコ生放送', ServiceType.Nicolive, 'live.nicovideo.jp', 'small_nico_live'),
+        new Service('Prime Video', ServiceType.PrimeVideo, 'amazon.co.jp', 'small_prime_video')
     ];
 
-    // 現在ページのサービス
+    /**
+     * 現在ページのサービス
+     * @type Service
+     */
     let currentService;
-    // サービス名
-    let serviceName;
-    // 小画像のキー
-    let imageKey;
 
     // 現在ページのサービスを特定
-    for (const entry of supportedService) {
-        if (!window.location.href.includes(entry[1])) continue;
+    for (const service of supportedService) {
+        // 現在ページが対応サービスであるかをドメイン名でチェック
+        if (!window.location.href.includes(service.domain)) continue;
 
-        currentService = supportedService.indexOf(entry);
-        serviceName    = entry[0];
-        imageKey       = entry[2];
+        currentService = service;
 
         break;
     }
 
     // 特定できなければ終了
-    if (!serviceName) return;
+    if (!currentService) return;
 
     /**
      * フェッチURLを生成する
@@ -197,7 +238,7 @@
             timestamp = getTimestampBefore(curPlayTime, fromTimestamp);
         }
 
-        const url = genUrl(serviceName, product, timestamp, imageKey);
+        const url = genUrl(currentService.serviceName, product, timestamp, currentService.imageKey);
 
         return dFetch.set(url);
     };
@@ -359,8 +400,8 @@
     };
 
     // 各サービスごとの処理
-    switch (currentService) {
-        case Service.Nicovideo:
+    switch (currentService.serviceType) {
+        case ServiceType.Nicovideo:
             // 動画の生成を待ってから処理
             waitForElement('#MainVideoPlayer video').then(($player) => {
                 // さらに動画が読み込まれるまで待機
@@ -378,7 +419,7 @@
 
             break;
 
-        case Service.Nicolive:
+        case ServiceType.Nicolive:
             // TODO: プレイヤーは動画がリロードされるたびに再生成され、経過時間もリセットされるので時間を文字列で直接取得する
             const $videoLayer = document.getElementsByClassName('___video-layer___qLdFV')[0];
 
@@ -414,7 +455,7 @@
 
             break;
 
-        case Service.PrimeVideo:
+        case ServiceType.PrimeVideo:
             primeVideoHandler();
 
             break;
